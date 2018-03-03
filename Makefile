@@ -10,7 +10,7 @@ munit.o: munit.c
 	$(CC) -c $(CFLAGS) $^ -o $@
 	
 test: test.o ejsonrpc.o frozen.o munit.o
-	$(CC) $(LDFLAGS) $^ -o $@
+	$(CC) $(LDFLAGS) $^ -o out/$@
 	
 test.o: test.c 
 	$(CC) -g -c $(CFLAGS) $^ -o $@
@@ -20,4 +20,4 @@ clean:
 	rm frozen.o
 	rm munit.o
 	rm test.o
-	rm test
+	rm out/test
