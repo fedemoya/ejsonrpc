@@ -3,7 +3,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "frozen.h"
 #include "ejsonrpc.h"
 
 
@@ -13,11 +12,9 @@ int execute_jsonrpc(const char *jsonrpc_req, int jsonrpc_size, jsonrpc_method_t 
 	int id = 0;
 	int read_bytes, written_bytes;
 
-	char method_response[100];
-
 	const char *jsonrpc_request_template = "{jsonrpc:%Q, method:%Q, params:%Q, id:%d}";
 	const char *error_response_template = "{jsonrpc: \"2.0\", error: {code:%d, message:%Q}, id:%d}";
-	const char *success_response_template = "{jsonrpc: \"2.0\", result:%Q, id:%d}";
+	const char *success_response_template = "{jsonrpc: \"2.0\", result: %M, id: %d}";
 
 	struct json_out out = JSON_OUT_BUF(jsonrpc_res, response_size);
 
@@ -42,18 +39,21 @@ int execute_jsonrpc(const char *jsonrpc_req, int jsonrpc_size, jsonrpc_method_t 
 		return written_bytes;
 	}
 
+	void *method_response;
+	json_printf_callback_t response_printer;
+
 	for (int i = 0; i < methods_size; ++i) {
 		if (strcmp(methods[i].method_name, method_name) == 0) {
 			free(method_name);
 			// Execute the corresponding method
-			written_bytes = methods[i].method(params, method_response, sizeof(method_response));
+			int result = methods[i].method(params, &method_response, &response_printer);
 
 			// TODO compare written_bytes with response_size
-			if (written_bytes > 0) {
-				written_bytes += json_printf(&out, success_response_template , method_response, id);
+			if (result >= 0) {
+				written_bytes = json_printf(&out, success_response_template, response_printer, method_response, id);
 				return written_bytes;
 			} else {
-				written_bytes = json_printf(&out, error_response_template, INTERNAL_ERROR, "", id);
+				written_bytes = json_printf(&out, error_response_template, result, "", id);
 				return written_bytes;
 			}
 		}

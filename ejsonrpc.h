@@ -1,4 +1,6 @@
 
+#include "frozen.h"
+
 /*
  * JSONRPC examples
  *
@@ -29,7 +31,14 @@
 
 typedef struct {
 	char *method_name;
-	int (*method)(char *params, char *response, int response_size);
+	/*
+	 * Input:
+	 *  - params
+	 * Output
+	 * - method_response
+	 * - response_printer
+	 */
+	int (*method)(char *params, void **method_response, json_printf_callback_t *response_printer);
 } jsonrpc_method_t;
 
 int execute_jsonrpc(const char *jsonrpc_req, int request_size, jsonrpc_method_t *methods, int methods_size, char *jsonrpc_res, int response_size);

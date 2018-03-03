@@ -1,10 +1,10 @@
 
 #include <stdlib.h>
+#include <stdarg.h>
 #include <string.h>
 #include <stdio.h>
 
 #include "ejsonrpc.h"
-#include "frozen.h"
 
 #include "munit.h"
 
@@ -14,44 +14,51 @@
  *****************************/
 
 
-int sum(char *params, char* response, int response_size) {
+int sum_response_printer(struct json_out *out, va_list *ap) {
+    int *method_response = va_arg(*ap, int *);
+    return json_printf(out, "%d", *method_response);
+}
 
-	struct json_token t;
-	int i;
+int sum(char *params, void **method_response, json_printf_callback_t *response_printer) {
 
-	int a, b, result;
-	char aux[10];
+    struct json_token t;
+    int i;
+
+    int a, b;
+
+    char aux[10];
 
     json_scanf_array_elem(params, strlen(params), "", 0, &t);
     strncpy(aux, t.ptr, t.len);
     a = atoi(aux);
 
     json_scanf_array_elem(params, strlen(params), "", 1, &t);
-	strncpy(aux, t.ptr, t.len);
-	b = atoi(aux);
+    strncpy(aux, t.ptr, t.len);
+    b = atoi(aux);
 
-	result = a + b;
+    int *result = malloc(sizeof(int));
+    *result = a + b;
 
-	struct json_out out = JSON_OUT_BUF(response, response_size);
+    *method_response = result;
+    *response_printer = sum_response_printer;
 
-	return json_printf(&out, "%d", result);
+    return 0;
 }
 
-int just_error(char *params, char* response, int response_size) {
-	return -1;
+int invalid_params(char *params, void **method_response, json_printf_callback_t *response_printer) {
+    return INVALID_PARAMS;
 }
 
 jsonrpc_method_t methods[] = {
-		{
-			"sum",
-			sum
-		},
-		{
-			"just_error",
-			just_error
-		}
+    {
+        "sum",
+        sum
+    },
+    {
+        "invalid_params",
+        invalid_params
+    }
 };
-
 
 /*****************************
  * Unit tests                *
@@ -70,7 +77,7 @@ static MunitResult test_sum(const MunitParameter params[], void* user_data_or_fi
 	int written_bytes = 0;
 
 	char req[] = "{\"jsonrpc\":\"2.0\", \"method\":\"sum\", \"params\":[1,2], \"id\":45}";
-	written_bytes = execute_jsonrpc(req, sizeof(req), methods, 2, response, sizeof(response));
+	written_bytes = execute_jsonrpc(req, sizeof(req), methods, sizeof(methods)/sizeof(jsonrpc_method_t), response, sizeof(response));
 
 	munit_assert_int(written_bytes, >, 0);
 
@@ -87,32 +94,61 @@ static MunitResult test_sum(const MunitParameter params[], void* user_data_or_fi
 	return MUNIT_OK;
 }
 
-static MunitResult test_just_error(const MunitParameter params[], void* user_data_or_fixture) {
+static MunitResult test_method_not_found(const MunitParameter params[], void* user_data_or_fixture) {
 
-	/* These are just to silence compiler warnings about the parameters
-	 * being unused. */
-	(void) params;
-	(void) user_data_or_fixture;
+  /* These are just to silence compiler warnings about the parameters
+   * being unused. */
+  (void) params;
+  (void) user_data_or_fixture;
 
-	char response[100];
-	int written_bytes = 0;
+  char response[100];
+  int written_bytes = 0;
 
-	char req[] = "{\"jsonrpc\":\"2.0\", \"method\":\"just_error\", \"params\":\"anything\", \"id\":87}";
-	written_bytes = execute_jsonrpc(req, sizeof(req), methods, 2, response, sizeof(response));
+  char req[] = "{\"jsonrpc\":\"2.0\", \"method\":\"a_non_existent_method\", \"params\":\"anything\", \"id\":87}";
+  written_bytes = execute_jsonrpc(req, sizeof(req), methods, sizeof(methods)/sizeof(jsonrpc_method_t), response, sizeof(response));
 
-	munit_assert_int(written_bytes, >, 0);
+  munit_assert_int(written_bytes, >, 0);
 
-	char *jsonrpc_version, *message;
-	int read_bytes, error_code, id;
+  char *jsonrpc_version, *message;
+  int read_bytes, error_code, id;
 
-	read_bytes = json_scanf(response, sizeof(response), "{jsonrpc: %Q, error: {code:%d, message:%Q}, id:%d}", &jsonrpc_version, &error_code, &message, &id);
+  read_bytes = json_scanf(response, sizeof(response), "{jsonrpc: %Q, error: {code:%d, message:%Q}, id:%d}", &jsonrpc_version, &error_code, &message, &id);
 
-	munit_assert_int(read_bytes, >, 0);
-	munit_assert_int(error_code, ==, INTERNAL_ERROR);
+  munit_assert_int(read_bytes, >, 0);
+  munit_assert_string_equal(jsonrpc_version, "2.0");
+  munit_assert_int(error_code, ==, METHOD_NOT_FOUND);
+  munit_assert_int(id, ==, 87);
 
-	return MUNIT_OK;
+  return MUNIT_OK;
 }
 
+static MunitResult test_invalid_params(const MunitParameter params[], void* user_data_or_fixture) {
+
+    /* These are just to silence compiler warnings about the parameters
+     * being unused. */
+    (void) params;
+    (void) user_data_or_fixture;
+
+    char response[100];
+    int written_bytes = 0;
+
+    char req[] = "{\"jsonrpc\":\"2.0\", \"method\":\"invalid_params\", \"params\":\"anything\", \"id\":87}";
+    written_bytes = execute_jsonrpc(req, sizeof(req), methods, sizeof(methods)/sizeof(jsonrpc_method_t), response, sizeof(response));
+
+    munit_assert_int(written_bytes, >, 0);
+
+    char *jsonrpc_version, *message;
+    int read_bytes, error_code, id;
+
+    read_bytes = json_scanf(response, sizeof(response), "{jsonrpc: %Q, error: {code:%d, message:%Q}, id:%d}", &jsonrpc_version, &error_code, &message, &id);
+
+    munit_assert_int(read_bytes, >, 0);
+    munit_assert_string_equal(jsonrpc_version, "2.0");
+    munit_assert_int(error_code, ==, INVALID_PARAMS);
+    munit_assert_int(id, ==, 87);
+
+    return MUNIT_OK;
+}
 
 /*****************************
  * Set up test suite         *
@@ -129,13 +165,21 @@ static MunitTest tests[] = {
 	NULL /* parameters */
   },
   {
-  	"/test_just_error", /* name */
-	test_just_error, /* test */
-  	NULL, /* setup */
-  	NULL, /* tear_down */
-  	MUNIT_TEST_OPTION_NONE, /* options */
-  	NULL /* parameters */
-    },
+    "/test_invalid_params", /* name */
+    test_invalid_params, /* test */
+    NULL, /* setup */
+    NULL, /* tear_down */
+    MUNIT_TEST_OPTION_NONE, /* options */
+    NULL /* parameters */
+  },
+  {
+    "/test_method_not_found", /* name */
+    test_method_not_found, /* test */
+    NULL, /* setup */
+    NULL, /* tear_down */
+    MUNIT_TEST_OPTION_NONE, /* options */
+    NULL /* parameters */
+  },
   /* Mark the end of the array with an entry where the test
    * function is NULL */
   { NULL, NULL, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL }
