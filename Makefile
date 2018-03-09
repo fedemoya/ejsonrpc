@@ -1,6 +1,13 @@
+
+MEM_ALLOCATOR := pc_allocator
+#MEM_ALLOCATOR := freertos_allocator
+
 all: test
 
 ejsonrpc.o: ejsonrpc.c
+	$(CC) -g -c $(CFLAGS) $^ -o $@
+	
+$(MEM_ALLOCATOR).o: $(MEM_ALLOCATOR).c
 	$(CC) -g -c $(CFLAGS) $^ -o $@
 	
 frozen.o: frozen.c
@@ -9,7 +16,7 @@ frozen.o: frozen.c
 munit.o: munit.c
 	$(CC) -c $(CFLAGS) $^ -o $@
 	
-test: test.o ejsonrpc.o frozen.o munit.o
+test: test.o ejsonrpc.o $(MEM_ALLOCATOR).o frozen.o munit.o
 	$(CC) $(LDFLAGS) $^ -o out/$@
 	
 test.o: test.c 

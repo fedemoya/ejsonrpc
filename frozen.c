@@ -26,6 +26,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "allocator.h"
+
 #if !defined(WEAK)
 #if (defined(__GNUC__) || defined(__TI_COMPILER_VERSION__)) && !defined(_WIN32)
 #define WEAK __attribute__((weak))
@@ -644,7 +646,7 @@ int json_vprintf(struct json_out *out, const char *fmt, va_list xap) {
           while (need_len < 0) {
             free(pbuf);
             size *= 2;
-            if ((pbuf = (char *) malloc(size)) == NULL) break;
+            if ((pbuf = (char *) gen_alloc(size)) == NULL) break;
             va_copy(ap_copy, ap);
             need_len = vsnprintf(pbuf, size, fmt2, ap_copy);
             va_end(ap_copy);
@@ -654,7 +656,7 @@ int json_vprintf(struct json_out *out, const char *fmt, va_list xap) {
            * resulting string doesn't fit into a stack-allocated buffer `buf`,
            * so we need to allocate a new buffer from heap and use it
            */
-          if ((pbuf = (char *) malloc(need_len + 1)) != NULL) {
+          if ((pbuf = (char *) gen_alloc(need_len + 1)) != NULL) {
             va_copy(ap_copy, ap);
             vsnprintf(pbuf, need_len + 1, fmt2, ap_copy);
             va_end(ap_copy);
@@ -918,7 +920,7 @@ static void json_scanf_cb(void *callback_data, const char *name,
       } else {
         int unescaped_len = json_unescape(token->ptr, token->len, NULL, 0);
         if (unescaped_len >= 0 &&
-            (*dst = (char *) malloc(unescaped_len + 1)) != NULL) {
+            (*dst = (char *) gen_alloc(unescaped_len + 1)) != NULL) {
           info->num_conversions++;
           json_unescape(token->ptr, token->len, *dst, unescaped_len);
           (*dst)[unescaped_len] = '\0';
@@ -930,7 +932,7 @@ static void json_scanf_cb(void *callback_data, const char *name,
       char **dst = (char **) info->user_data;
       int i, len = token->len / 2;
       *(int *) info->target = len;
-      if ((*dst = (char *) malloc(len + 1)) != NULL) {
+      if ((*dst = (char *) gen_alloc(len + 1)) != NULL) {
         for (i = 0; i < len; i++) {
           (*dst)[i] = hexdec(token->ptr + 2 * i);
         }
@@ -942,7 +944,7 @@ static void json_scanf_cb(void *callback_data, const char *name,
     case 'V': {
       char **dst = (char **) info->target;
       int len = token->len * 4 / 3 + 2;
-      if ((*dst = (char *) malloc(len + 1)) != NULL) {
+      if ((*dst = (char *) gen_alloc(len + 1)) != NULL) {
         int n = b64dec(token->ptr, token->len, *dst);
         (*dst)[n] = '\0';
         *(int *) info->user_data = n;
@@ -1058,7 +1060,7 @@ char *json_fread(const char *path) {
     fclose(fp);
   } else {
     size_t size = ftell(fp);
-    data = (char *) malloc(size + 1);
+    data = (char *) gen_alloc(size + 1);
     if (data != NULL) {
       fseek(fp, 0, SEEK_SET); /* Some platforms might not have rewind(), Oo */
       if (fread(data, 1, size, fp) != size) {

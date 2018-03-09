@@ -5,7 +5,6 @@
 
 #include "ejsonrpc.h"
 
-
 int execute_jsonrpc(const char *jsonrpc_req, int jsonrpc_size, jsonrpc_method_t *methods, int methods_size, char *jsonrpc_res, int response_size) {
 	
 	char *jsonrpc_version, *method_name,*params;

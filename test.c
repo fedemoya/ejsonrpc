@@ -5,6 +5,7 @@
 #include <stdio.h>
 
 #include "ejsonrpc.h"
+#include "allocator.h"
 
 #include "munit.h"
 
@@ -36,7 +37,7 @@ int sum(char *params, void **method_response, json_printf_callback_t *response_p
     strncpy(aux, t.ptr, t.len);
     b = atoi(aux);
 
-    int *result = malloc(sizeof(int));
+    int *result = gen_alloc(sizeof(int));
     *result = a + b;
 
     *method_response = result;
