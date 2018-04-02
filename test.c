@@ -78,14 +78,14 @@ static MunitResult test_sum(const MunitParameter params[], void* user_data_or_fi
 	int written_bytes = 0;
 
 	char req[] = "{\"jsonrpc\":\"2.0\", \"method\":\"sum\", \"params\":[1,2], \"id\":45}";
-	written_bytes = execute_jsonrpc(req, sizeof(req), methods, sizeof(methods)/sizeof(jsonrpc_method_t), response, sizeof(response));
+	written_bytes = execute_jsonrpc(req, strlen(req), methods, sizeof(methods)/sizeof(jsonrpc_method_t), response, sizeof(response));
 
 	munit_assert_int(written_bytes, >, 0);
 
 	char *jsonrpc_version;
 	int read_bytes, result, id;
 
-	read_bytes = json_scanf(response, sizeof(response), "{jsonrpc: %Q, result: %d, id:%d}", &jsonrpc_version, &result, &id);
+	read_bytes = json_scanf(response, strlen(response), "{jsonrpc: %Q, result: %d, id:%d}", &jsonrpc_version, &result, &id);
 
 	munit_assert_int(read_bytes, >, 0);
 	munit_assert_string_equal(jsonrpc_version, "2.0");
@@ -93,6 +93,34 @@ static MunitResult test_sum(const MunitParameter params[], void* user_data_or_fi
 	munit_assert_int(id, ==, 45);
 
 	return MUNIT_OK;
+}
+
+static MunitResult test_invalid_request(const MunitParameter params[], void* user_data_or_fixture) {
+
+  /* These are just to silence compiler warnings about the parameters
+   * being unused. */
+  (void) params;
+  (void) user_data_or_fixture;
+
+  char response[100];
+  int written_bytes = 0;
+
+  char req[] = "{\"jsonrpc\" : \"2.0\"}";
+  written_bytes = execute_jsonrpc(req, strlen(req), methods, sizeof(methods)/sizeof(jsonrpc_method_t), response, sizeof(response));
+
+  munit_assert_int(written_bytes, >, 0);
+
+  char *jsonrpc_version, *message;
+  int read_bytes, error_code, id;
+
+  read_bytes = json_scanf(response, strlen(response), "{jsonrpc: %Q, error: {code:%d, message:%Q}, id:%d}", &jsonrpc_version, &error_code, &message, &id);
+
+  munit_assert_int(read_bytes, >, 0);
+  munit_assert_string_equal(jsonrpc_version, "2.0");
+  munit_assert_int(error_code, ==, INVALID_REQUEST);
+  munit_assert_int(id, ==, 0);
+
+  return MUNIT_OK;
 }
 
 static MunitResult test_method_not_found(const MunitParameter params[], void* user_data_or_fixture) {
@@ -106,14 +134,14 @@ static MunitResult test_method_not_found(const MunitParameter params[], void* us
   int written_bytes = 0;
 
   char req[] = "{\"jsonrpc\":\"2.0\", \"method\":\"a_non_existent_method\", \"params\":\"anything\", \"id\":87}";
-  written_bytes = execute_jsonrpc(req, sizeof(req), methods, sizeof(methods)/sizeof(jsonrpc_method_t), response, sizeof(response));
+  written_bytes = execute_jsonrpc(req, strlen(req), methods, sizeof(methods)/sizeof(jsonrpc_method_t), response, sizeof(response));
 
   munit_assert_int(written_bytes, >, 0);
 
   char *jsonrpc_version, *message;
   int read_bytes, error_code, id;
 
-  read_bytes = json_scanf(response, sizeof(response), "{jsonrpc: %Q, error: {code:%d, message:%Q}, id:%d}", &jsonrpc_version, &error_code, &message, &id);
+  read_bytes = json_scanf(response, strlen(response), "{jsonrpc: %Q, error: {code:%d, message:%Q}, id:%d}", &jsonrpc_version, &error_code, &message, &id);
 
   munit_assert_int(read_bytes, >, 0);
   munit_assert_string_equal(jsonrpc_version, "2.0");
@@ -134,14 +162,14 @@ static MunitResult test_invalid_params(const MunitParameter params[], void* user
     int written_bytes = 0;
 
     char req[] = "{\"jsonrpc\":\"2.0\", \"method\":\"invalid_params\", \"params\":\"anything\", \"id\":87}";
-    written_bytes = execute_jsonrpc(req, sizeof(req), methods, sizeof(methods)/sizeof(jsonrpc_method_t), response, sizeof(response));
+    written_bytes = execute_jsonrpc(req, strlen(req), methods, sizeof(methods)/sizeof(jsonrpc_method_t), response, sizeof(response));
 
     munit_assert_int(written_bytes, >, 0);
 
     char *jsonrpc_version, *message;
     int read_bytes, error_code, id;
 
-    read_bytes = json_scanf(response, sizeof(response), "{jsonrpc: %Q, error: {code:%d, message:%Q}, id:%d}", &jsonrpc_version, &error_code, &message, &id);
+    read_bytes = json_scanf(response, strlen(response), "{jsonrpc: %Q, error: {code:%d, message:%Q}, id:%d}", &jsonrpc_version, &error_code, &message, &id);
 
     munit_assert_int(read_bytes, >, 0);
     munit_assert_string_equal(jsonrpc_version, "2.0");
@@ -165,6 +193,14 @@ static MunitTest tests[] = {
 	MUNIT_TEST_OPTION_NONE, /* options */
 	NULL /* parameters */
   },
+  {
+      "/test_invalid_request", /* name */
+      test_invalid_request, /* test */
+      NULL, /* setup */
+      NULL, /* tear_down */
+      MUNIT_TEST_OPTION_NONE, /* options */
+      NULL /* parameters */
+    },
   {
     "/test_invalid_params", /* name */
     test_invalid_params, /* test */

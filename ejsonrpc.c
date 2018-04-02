@@ -29,7 +29,8 @@ int execute_jsonrpc(const char *jsonrpc_req, int jsonrpc_size, jsonrpc_method_t 
 	);
 
 	if (read_bytes <= 0) {
-		written_bytes = json_printf(&out, error_response_template, PARSE_ERROR, "", id);
+	    int error_code = read_bytes < 0 ? read_bytes : PARSE_ERROR;
+		written_bytes = json_printf(&out, error_response_template, error_code, "", id);
 		return written_bytes;
 	}
 
